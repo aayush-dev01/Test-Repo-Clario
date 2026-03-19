@@ -1,0 +1,69 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Users ──────────────────────────────────────────────
+    match /users/{userId} {
+      // Anyone authenticated can read tutor profiles (for FindSkills, TutorProfile)
+      allow read: if request.auth != null;
+      // Only the owner can write their own profile
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // ── Sessions ───────────────────────────────────────────
+    match /sessions/{sessionId} {
+      // Only participants in the session can read it
+      allow read: if request.auth != null &&
+        request.auth.uid in resource.data.participantIds;
+
+      // Students can create sessions
+      allow create: if request.auth != null &&
+        request.auth.uid == request.resource.data.studentId;
+
+      // Participants can update (accept/reject/complete)
+      allow update: if request.auth != null &&
+        request.auth.uid in resource.data.participantIds;
+
+      // WebRTC signaling subcollection
+      match /calls/{callId} {
+        allow read, write: if request.auth != null;
+        match /offerCandidates/{c}  { allow read, write: if request.auth != null; }
+        match /answerCandidates/{c} { allow read, write: if request.auth != null; }
+      }
+
+      // Real-time chat subcollection
+      // Only session participants can read/write
+      match /chat/{messageId} {
+        allow read: if request.auth != null &&
+          request.auth.uid in get(/databases/$(database)/documents/sessions/$(sessionId)).data.participantIds;
+        allow create: if request.auth != null &&
+          request.auth.uid in get(/databases/$(database)/documents/sessions/$(sessionId)).data.participantIds &&
+          request.auth.uid == request.resource.data.senderId;
+      }
+
+      // Collaborative whiteboard subcollection
+      // Only session participants can read/write
+      match /whiteboard/{docId} {
+        allow read, write: if request.auth != null &&
+          request.auth.uid in get(/databases/$(database)/documents/sessions/$(sessionId)).data.participantIds;
+      }
+    }
+
+    // ── Ratings ────────────────────────────────────────────
+    match /ratings/{ratingId} {
+      // Anyone authenticated can read ratings (shown on tutor profiles)
+      allow read: if request.auth != null;
+      // Only the rater can create/update their own rating
+      allow write: if request.auth != null &&
+        request.auth.uid == request.resource.data.raterId;
+    }
+
+    // ── Notifications ──────────────────────────────────────
+    // Users can read/write only their own notifications
+    // Other authenticated users can create notifications (to notify peers)
+    match /notifications/{userId}/items/{notifId} {
+      allow read, update, delete: if request.auth != null && request.auth.uid == userId;
+      allow create: if request.auth != null;
+    }
+  }
+}
