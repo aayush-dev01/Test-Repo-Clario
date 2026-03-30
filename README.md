@@ -133,3 +133,5 @@ firebase deploy
 
 ### Vercel / Netlify
 Point build command to `npm run build`, output dir to `dist`. Add a rewrite rule: `/* → /index.html`.
+
+Created with 💗 for Students by Students.
